@@ -8,5 +8,4 @@ func main() {
 	var ()
 
 	log.Info("Server started")
-
 }
