@@ -12,5 +12,6 @@ message UploadRequest {
 }
 
 message UploadResponse {
-    string url = 1;
+    int32 status = 1;
+    string Msg = 2;
 }

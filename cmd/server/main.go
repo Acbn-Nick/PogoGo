@@ -1,11 +1,14 @@
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
+	api "github.com/Acbn-Nick/pogogo/api"
+	server "github.com/Acbn-Nick/pogogo/internal/server"
 )
 
 func main() {
 	var ()
 
-	log.Info("Server started")
+	s := server.NewServer()
+
+	s.Upload(&api.UploadRequest{Password: "asd"})
 }
