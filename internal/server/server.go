@@ -20,6 +20,25 @@ func New() *Server {
 	return &server
 }
 
+func (s *Server) Start() {
+	log.Info("Starting server")
+
+	if err := s.config.loadConfig(); err != nil {
+		log.Fatal("Error in config loading: ", err.Error())
+	}
+
+	lis, err := net.Listen("tcp", s.config.Port)
+	if err != nil {
+		log.Fatal("Failed to start listening: ", err.Error())
+	}
+
+	grpcServer := grpc.NewServer()
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatal("Failed to serve gRPC: ", err.Error())
+	}
+
+}
+
 func (s *Server) Upload(req *api.UploadRequest) (*api.UploadResponse, error) {
 	resp := api.UploadResponse{
 		Status: 1,
@@ -32,22 +51,4 @@ func (s *Server) Upload(req *api.UploadRequest) (*api.UploadResponse, error) {
 	}
 
 	return &resp, nil
-}
-
-func (s *Server) Start() {
-	log.Info("Starting server")
-
-	s.config.loadConfig()
-
-	lis, err := net.Listen("tcp", ":9001")
-	if err != nil {
-		log.Info("Failed to start on port 9001")
-	}
-
-	grpcServer := grpc.NewServer()
-
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Info("Failed to serve gRPC over port 9001")
-	}
-
 }

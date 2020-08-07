@@ -1,13 +1,8 @@
-[Settings]
-
 #==========================================================#
 #Port that the server will listen for uploads on.
-Port=9001
-
+Port=":9001"
 #Password that will be used to authenticate upload requests.
 Password="pogogo"
-
-#Time to live, how long uploads will live on the server in
-#hours.  0 is infinite.
-Ttl=0
+#Time to live, how long uploads will live on the server
+Ttl="1h1m1s"
 #==========================================================#
