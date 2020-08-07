@@ -1,14 +1,20 @@
 package main
 
 import (
-	api "github.com/Acbn-Nick/pogogo/api"
+	"os"
+
+	log "github.com/sirupsen/logrus"
+
 	server "github.com/Acbn-Nick/pogogo/internal/server"
 )
 
 func main() {
-	var ()
+	sigs := make(chan os.Signal, 1)
 
-	s := server.NewServer()
+	s := server.New()
 
-	s.Upload(&api.UploadRequest{Password: "asd"})
+	go s.Start()
+
+	<-sigs
+	log.Info("Killing server")
 }
