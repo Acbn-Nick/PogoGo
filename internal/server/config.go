@@ -31,30 +31,30 @@ func setDefaults() *Configuration {
 }
 
 func (c *Configuration) loadConfig() error {
-	log.Info("Loading config from config.toml")
+	log.Info("loading config from config.toml")
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			log.Info("Failed to find config.toml, using defaults")
+			log.Info("failed to find config.toml, using defaults")
 			return err
 		} else {
-			log.Info("Failed to access config.toml (Are permissions correct?)")
+			log.Info("failed to access config.toml (Are permissions correct?)")
 			return err
 		}
 	}
 	if err := viper.UnmarshalExact(c); err != nil {
-		log.Info("Failed to parse config.toml, using defaults")
+		log.Info("failed to parse config.toml, using defaults")
 		log.Info(err.Error())
 		return err
 	}
 
-	log.Info("Using")
-	log.Info("Port: " + c.Port)
-	log.Info("Password: " + c.Password)
-	log.Infof("Ttl: %+v", c.Ttl)
+	log.Info("using")
+	log.Info("port: " + c.Port)
+	log.Info("password: " + c.Password)
+	log.Infof("ttl: %+v", c.Ttl)
 
 	h := sha1.New()
 	if _, err := h.Write([]byte(c.Password)); err != nil {
-		log.Info("Failed to hash password from config.ini", err.Error())
+		log.Info("failed to hash password from config.ini", err.Error())
 		return err
 	}
 	c.Password = string(h.Sum(nil))

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -28,22 +29,22 @@ func New() *Server {
 }
 
 func (s *Server) Start() {
-	log.Info("Starting server")
+	log.Info("starting server")
 
 	if err := s.config.loadConfig(); err != nil {
-		log.Fatal("Error in config loading: ", err.Error())
+		log.Fatal("error in config loading: ", err.Error())
 	}
 
-	log.Info("Starting listening on: 127.0.0.1" + s.config.Port)
+	log.Info("starting listening on: 127.0.0.1" + s.config.Port)
 	lis, err := net.Listen("tcp", "127.0.0.1"+s.config.Port)
 	if err != nil {
-		log.Fatal("Failed to start listening: ", err.Error())
+		log.Fatal("failed to start listening: ", err.Error())
 	}
 
 	grpcServer := grpc.NewServer()
 	api.RegisterPogogoServer(grpcServer, s)
 	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatal("Failed to start gRPC server: ", err.Error())
+		log.Fatal("failed to start gRPC server: ", err.Error())
 	}
 }
 
@@ -51,42 +52,75 @@ func (s *Server) Upload(ctx context.Context, req *api.UploadRequest) (*api.Uploa
 	resp := api.UploadResponse{
 		Msg: "",
 	}
-	log.Info("Received request")
-	h := sha1.New()
-	if _, err := h.Write([]byte(req.Password)); err != nil {
-		log.Info("Failed password hashing on request ", err.Error())
+
+	log.Info("received request")
+
+	if !s.authenticate(req.Password) {
+		log.Info("upload attempted with incorrect password")
+		return &api.UploadResponse{}, fmt.Errorf("incorrect password")
+	}
+
+	fname, err := s.addFile(req.Image)
+	if err != nil {
+		log.Info("failed upload ", err.Error())
 		return &api.UploadResponse{}, err
 	}
 
-	hs := string(h.Sum(nil))
-	if hs != s.config.Password {
-		log.Info("Upload attempted with incorrect password")
-		return &api.UploadResponse{}, fmt.Errorf("Incorrect password")
-	}
-
-	fname := "./received/" + strconv.FormatInt(time.Now().UTC().UnixNano()/100, 10) + ".png"
-	f, err := os.Create(fname)
-	if err != nil {
-		log.Info("Failed upload ", err.Error())
-		return &api.UploadResponse{}, fmt.Errorf("Image upload failed")
-	}
-	defer f.Close()
-	_, err = f.Write(req.Image)
-	if err != nil {
-		log.Info("Failed upload ", err.Error())
-		return &api.UploadResponse{}, fmt.Errorf("Image upload failed")
-	}
-	err = f.Sync()
-	if err != nil {
-		log.Info("Failed upload ", err.Error())
-		return &api.UploadResponse{}, fmt.Errorf("Image upload failure")
-	}
-	log.Info("Created file: " + fname)
+	log.Info("created file: " + fname)
 	resp.Msg = fname
 	return &resp, nil
 }
 
-func (s *Server) authenticate(pw string) bool {
+func (s *Server) addFile(img []byte) (string, error) {
+	fname := "./received/" + strconv.FormatInt(time.Now().UTC().UnixNano()/100, 10) + ".png"
+	f, err := os.Create(fname)
+	if err != nil {
+		return "", fmt.Errorf("image upload failed")
+	}
+	defer f.Close()
+	_, err = f.Write(img)
+	if err != nil {
+		return "", fmt.Errorf("image upload failed")
+	}
+	err = f.Sync()
+	if err != nil {
+		return "", fmt.Errorf("image upload failed")
+	}
+	if s.config.Ttl != 0 {
+		go s.trackAndCull(fname)
+	}
+	return fname, nil
+}
 
-	return true
+func (s *Server) authenticate(pw string) bool {
+	h := sha1.New()
+	if _, err := h.Write([]byte(pw)); err != nil {
+		log.Info("failed password hashing on request ", err.Error())
+		return false
+	}
+	hs := string(h.Sum(nil))
+	return hs == s.config.Password
+}
+
+func (s *Server) trackAndCull(fn string) {
+	s.files = append(s.files, fn)
+	t := time.Now()
+	removed := 0
+	for i, si := range s.files {
+		name := strings.Split(si, "/")[2]
+		name = name[:len(name)-4]
+		nano, _ := strconv.Atoi(name)
+		created := time.Unix(0, int64(nano*100))
+		elapsed := t.Sub(created)
+		if elapsed >= s.config.Ttl {
+			if err := os.Remove(s.files[i]); err != nil {
+				log.Info("file culling failed ", err.Error())
+			}
+			log.Info("removed file: ", s.files[i])
+			removed++
+		} else {
+			break
+		}
+	}
+	s.files = s.files[removed:]
 }
