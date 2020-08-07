@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package pogogo;
+package api;
 
 service Pogogo{
     rpc Upload(UploadRequest) returns (UploadResponse) {}

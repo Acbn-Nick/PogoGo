@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -16,6 +19,7 @@ import (
 type Server struct {
 	HttpServ *http.Server
 	config   *Configuration
+	files    []string
 }
 
 func New() *Server {
@@ -30,37 +34,59 @@ func (s *Server) Start() {
 		log.Fatal("Error in config loading: ", err.Error())
 	}
 
-	lis, err := net.Listen("tcp", s.config.Port)
+	log.Info("Starting listening on: 127.0.0.1" + s.config.Port)
+	lis, err := net.Listen("tcp", "127.0.0.1"+s.config.Port)
 	if err != nil {
 		log.Fatal("Failed to start listening: ", err.Error())
 	}
 
 	grpcServer := grpc.NewServer()
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatal("Failed to serve gRPC: ", err.Error())
-	}
-
 	api.RegisterPogogoServer(grpcServer, s)
-
-	grpcServer.Serve(lis)
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatal("Failed to start gRPC server: ", err.Error())
+	}
 }
 
-func (s *Server) Upload(c context.Context, req *api.UploadRequest) (*api.UploadResponse, error) {
+func (s *Server) Upload(ctx context.Context, req *api.UploadRequest) (*api.UploadResponse, error) {
 	resp := api.UploadResponse{
 		Msg: "",
 	}
-
+	log.Info("Received request")
 	h := sha1.New()
 	if _, err := h.Write([]byte(req.Password)); err != nil {
 		log.Info("Failed password hashing on request ", err.Error())
-		return nil, err
+		return &api.UploadResponse{}, err
 	}
 
 	hs := string(h.Sum(nil))
 	if hs != s.config.Password {
 		log.Info("Upload attempted with incorrect password")
-		return &api.UploadResponse{}, fmt.Errorf("Incorrect Password")
+		return &api.UploadResponse{}, fmt.Errorf("Incorrect password")
 	}
 
+	fname := "./received/" + strconv.FormatInt(time.Now().UTC().UnixNano()/100, 10) + ".png"
+	f, err := os.Create(fname)
+	if err != nil {
+		log.Info("Failed upload ", err.Error())
+		return &api.UploadResponse{}, fmt.Errorf("Image upload failed")
+	}
+	defer f.Close()
+	_, err = f.Write(req.Image)
+	if err != nil {
+		log.Info("Failed upload ", err.Error())
+		return &api.UploadResponse{}, fmt.Errorf("Image upload failed")
+	}
+	err = f.Sync()
+	if err != nil {
+		log.Info("Failed upload ", err.Error())
+		return &api.UploadResponse{}, fmt.Errorf("Image upload failure")
+	}
+	log.Info("Created file: " + fname)
+	resp.Msg = fname
 	return &resp, nil
+}
+
+func (s *Server) authenticate(pw string) bool {
+
+	return true
 }
