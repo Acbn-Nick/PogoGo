@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/sha1"
 	"net"
 	"net/http"
 
@@ -45,7 +46,14 @@ func (s *Server) Upload(req *api.UploadRequest) (*api.UploadResponse, error) {
 		Msg:    "",
 	}
 
-	if req.Password != s.config.Password {
+	h := sha1.New()
+	if _, err := h.Write([]byte(req.Password)); err != nil {
+		log.Info("Failed password hashing on request", err.Error())
+		return nil, err
+	}
+
+	hs := string(h.Sum(nil))
+	if hs != s.config.Password {
 		log.Info("Upload attempted with incorrect password")
 		return &api.UploadResponse{Status: 1, Msg: "Incorrect Password"}, nil
 	}

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/sha1"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -45,10 +46,18 @@ func (c *Configuration) loadConfig() error {
 		log.Info(err.Error())
 		return err
 	}
+
 	log.Info("Using")
 	log.Info("Port: " + c.Port)
 	log.Info("Password: " + c.Password)
 	log.Infof("Ttl: %+v", c.Ttl)
+
+	h := sha1.New()
+	if _, err := h.Write([]byte(c.Password)); err != nil {
+		log.Info("Failed to hash password from config.ini", err.Error())
+		return err
+	}
+	c.Password = string(h.Sum(nil))
 
 	return nil
 }
