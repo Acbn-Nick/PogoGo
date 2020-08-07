@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/sha1"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -38,24 +39,26 @@ func (s *Server) Start() {
 		log.Fatal("Failed to serve gRPC: ", err.Error())
 	}
 
+	api.RegisterPogogoServer(grpcServer, s)
+
+	grpcServer.Serve(lis)
 }
 
 func (s *Server) Upload(req *api.UploadRequest) (*api.UploadResponse, error) {
 	resp := api.UploadResponse{
-		Status: 1,
-		Msg:    "",
+		Msg: "",
 	}
 
 	h := sha1.New()
 	if _, err := h.Write([]byte(req.Password)); err != nil {
-		log.Info("Failed password hashing on request", err.Error())
+		log.Info("Failed password hashing on request ", err.Error())
 		return nil, err
 	}
 
 	hs := string(h.Sum(nil))
 	if hs != s.config.Password {
 		log.Info("Upload attempted with incorrect password")
-		return &api.UploadResponse{Status: 1, Msg: "Incorrect Password"}, nil
+		return &api.UploadResponse{}, fmt.Errorf("Incorrect Password")
 	}
 
 	return &resp, nil
