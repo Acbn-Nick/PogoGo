@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/sha1"
 	"fmt"
 	"net"
@@ -44,7 +45,7 @@ func (s *Server) Start() {
 	grpcServer.Serve(lis)
 }
 
-func (s *Server) Upload(req *api.UploadRequest) (*api.UploadResponse, error) {
+func (s *Server) Upload(c context.Context, req *api.UploadRequest) (*api.UploadResponse, error) {
 	resp := api.UploadResponse{
 		Msg: "",
 	}
