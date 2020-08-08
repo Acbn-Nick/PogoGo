@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io/ioutil"
+	"os/exec"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -36,4 +37,5 @@ func main() {
 		log.Fatal("error in request ", err.Error())
 	}
 	log.Info("client got response: ", response.Msg)
+	exec.Command("rundll32", "url.dll,FileProtocolHandler", "http://"+response.Msg).Start()
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
-	"html/template"
 	"net"
 	"net/http"
 	"os"
@@ -31,13 +30,13 @@ func New() *Server {
 
 func (s *Server) Start() {
 	log.Info("starting grpc and http server")
-	go startHttpServer()
+	go startHttpServer(s.config)
 	if err := s.config.loadConfig(); err != nil {
 		log.Fatal("error in config loading: ", err.Error())
 	}
 
-	log.Info("starting listening on: 127.0.0.1" + s.config.Port)
-	lis, err := net.Listen("tcp", "127.0.0.1"+s.config.Port)
+	log.Info("starting listening on: " + s.config.Port)
+	lis, err := net.Listen("tcp", s.config.Port)
 	if err != nil {
 		log.Fatal("failed to start listening: ", err.Error())
 	}
@@ -68,26 +67,25 @@ func (s *Server) Upload(ctx context.Context, req *api.UploadRequest) (*api.Uploa
 	}
 
 	log.Info("created file: " + fname)
-	resp.Msg = fname
+	resp.Msg = s.config.HttpPort + "/?v=" + strings.Split(fname, "/")[2]
 	return &resp, nil
 }
 
-func startHttpServer() {
-	tmpl := template.Must(template.ParseFiles("../../web/page.html"))
-	if err := http.ListenAndServe("127.0.0.1:8080", handle(tmpl)); err != nil {
-		log.Fatalf("error starting http server: ", err.Error())
-	}
+func index_handler(w http.ResponseWriter, r *http.Request) {
+	filename := r.URL.Query().Get("v")
+	fmt.Fprintf(w, "<title>Pogogo | %s</title>", filename)
+	fmt.Fprintf(w, "<link rel='icon' type='image/ico' href='images/favicon.ico'>")
+	fmt.Fprintf(w, "<br><img src='images/%s' style='display:block;margin-left:auto;margin-right:auto;max-width:50%;'>", filename)
+	fmt.Fprintf(w, "<center><br><br>")
+	fmt.Fprintf(w, "<a href='https://github.com/Acbn-Nick/pogogo' style='text-decoration:none;color:#3e598c;'>Sharing made easy with Pogogo</a>")
+	fmt.Fprintf(w, "</center>")
+
 }
 
-func handle(t *template.Template) http.Handler {
-	hdl := func(rw http.ResponseWriter, r *http.Request) {
-		if err := t.Execute(rw, r.URL.Query()); err != nil {
-			http.Error(rw, "error executing template "+err.Error(), http.StatusInternalServerError)
-		}
-	}
-
-	return http.HandlerFunc(hdl)
-
+func startHttpServer(c *Configuration) {
+	http.HandleFunc("/", index_handler)
+	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir("./received"))))
+	http.ListenAndServe(c.HttpPort, nil)
 }
 
 func (s *Server) addFile(img []byte) (string, error) {
