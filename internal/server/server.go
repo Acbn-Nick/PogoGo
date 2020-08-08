@@ -96,12 +96,17 @@ func (s *Server) cleanup() {
 	mode := info.Mode()
 	os.RemoveAll("./received")
 	os.Mkdir("received", mode)
-
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	filename := r.URL.Query().Get("v")
-	fmt.Fprintf(w, "<title>Pogogo | %s</title>", filename)
+	_, err := os.Stat("./received/" + filename)
+	if os.IsNotExist(err) {
+		filename = "../assets/404.png"
+		fmt.Fprintf(w, "<title>Pogogo | 404 </title>")
+	} else {
+		fmt.Fprintf(w, "<title>Pogogo | %s</title>", filename)
+	}
 	page := "<link rel='icon' type='image/ico' href='assets/favicon.ico'>" +
 		"<br><img src='images/%s' style='display:block;margin-left:auto;margin-right:auto;max-width:50%%;'>" +
 		"<center><br><br>" +
