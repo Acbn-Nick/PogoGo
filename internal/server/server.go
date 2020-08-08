@@ -18,19 +18,24 @@ import (
 )
 
 type Server struct {
-	HttpServ *http.Server
+	grpcServ *grpc.Server
 	config   *Configuration
 	files    []string
+	ctx      context.Context
+	done     chan interface{}
 }
 
-func New() *Server {
-	server := Server{config: NewConfiguration()}
-	return &server
+func New(c context.Context, rc bool) (*Server, chan interface{}) {
+	server := Server{config: NewConfiguration(), ctx: c, done: make(chan interface{})}
+	if rc {
+		server.cleanup()
+	}
+	return &server, server.done
 }
 
 func (s *Server) Start() {
 	log.Info("starting grpc and http server")
-	go startHttpServer(s.config)
+	go s.startHttpServer(s.config)
 	if err := s.config.loadConfig(); err != nil {
 		log.Fatal("error in config loading: ", err.Error())
 	}
@@ -42,6 +47,9 @@ func (s *Server) Start() {
 	}
 
 	grpcServer := grpc.NewServer()
+
+	go s.handleShutdown()
+
 	api.RegisterPogogoServer(grpcServer, s)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatal("failed to start gRPC server: ", err.Error())
@@ -71,20 +79,41 @@ func (s *Server) Upload(ctx context.Context, req *api.UploadRequest) (*api.Uploa
 	return &resp, nil
 }
 
-func index_handler(w http.ResponseWriter, r *http.Request) {
-	filename := r.URL.Query().Get("v")
-	fmt.Fprintf(w, "<title>Pogogo | %s</title>", filename)
-	fmt.Fprintf(w, "<link rel='icon' type='image/ico' href='images/favicon.ico'>")
-	fmt.Fprintf(w, "<br><img src='images/%s' style='display:block;margin-left:auto;margin-right:auto;max-width:50%;'>", filename)
-	fmt.Fprintf(w, "<center><br><br>")
-	fmt.Fprintf(w, "<a href='https://github.com/Acbn-Nick/pogogo' style='text-decoration:none;color:#3e598c;'>Sharing made easy with Pogogo</a>")
-	fmt.Fprintf(w, "</center>")
+func (s *Server) handleShutdown() {
+	select {
+	case <-s.ctx.Done():
+		//s.cleanup()
+		s.done <- nil
+	}
+}
+
+func (s *Server) cleanup() {
+	log.Info("entering cleanup")
+	info, err := os.Stat("./received")
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+	mode := info.Mode()
+	os.RemoveAll("./received")
+	os.Mkdir("received", mode)
 
 }
 
-func startHttpServer(c *Configuration) {
-	http.HandleFunc("/", index_handler)
+func handler(w http.ResponseWriter, r *http.Request) {
+	filename := r.URL.Query().Get("v")
+	fmt.Fprintf(w, "<title>Pogogo | %s</title>", filename)
+	page := "<link rel='icon' type='image/ico' href='assets/favicon.ico'>" +
+		"<br><img src='images/%s' style='display:block;margin-left:auto;margin-right:auto;max-width:50%%;'>" +
+		"<center><br><br>" +
+		"<a href='https://github.com/Acbn-Nick/pogogo' style='text-decoration:none;color:#3e598c;'>Sharing made easy with Pogogo</a>" +
+		"</center>"
+	fmt.Fprintf(w, page, filename)
+}
+
+func (s *Server) startHttpServer(c *Configuration) {
+	http.HandleFunc("/", handler)
 	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir("./received"))))
+	http.Handle("/assets/", http.StripPrefix("/assets", http.FileServer(http.Dir("./assets"))))
 	http.ListenAndServe(c.HttpPort, nil)
 }
 
