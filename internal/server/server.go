@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"html/template"
 	"net"
 	"net/http"
 	"os"
@@ -29,8 +30,8 @@ func New() *Server {
 }
 
 func (s *Server) Start() {
-	log.Info("starting server")
-
+	log.Info("starting grpc and http server")
+	go startHttpServer()
 	if err := s.config.loadConfig(); err != nil {
 		log.Fatal("error in config loading: ", err.Error())
 	}
@@ -69,6 +70,24 @@ func (s *Server) Upload(ctx context.Context, req *api.UploadRequest) (*api.Uploa
 	log.Info("created file: " + fname)
 	resp.Msg = fname
 	return &resp, nil
+}
+
+func startHttpServer() {
+	tmpl := template.Must(template.ParseFiles("../../web/page.html"))
+	if err := http.ListenAndServe("127.0.0.1:8080", handle(tmpl)); err != nil {
+		log.Fatalf("error starting http server: ", err.Error())
+	}
+}
+
+func handle(t *template.Template) http.Handler {
+	hdl := func(rw http.ResponseWriter, r *http.Request) {
+		if err := t.Execute(rw, r.URL.Query()); err != nil {
+			http.Error(rw, "error executing template "+err.Error(), http.StatusInternalServerError)
+		}
+	}
+
+	return http.HandlerFunc(hdl)
+
 }
 
 func (s *Server) addFile(img []byte) (string, error) {
