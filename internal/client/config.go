@@ -1,18 +1,13 @@
-package server
+package client
 
 import (
-	"crypto/sha1"
-	"time"
-
 	log "github.com/sirupsen/logrus"
-	viper "github.com/spf13/viper"
+	"github.com/spf13/viper"
 )
 
 type Configuration struct {
-	Port     string        `mapstructure:"Port"`
-	Password string        `mapstructure:"Password"`
-	Ttl      time.Duration `mapstructure:"Ttl"`
-	HttpPort string        `mapstructure:"HttpPort"`
+	Password    string `mapstructure:"Password"`
+	Destination string `mapstructure:"Destination"`
 }
 
 func NewConfiguration() *Configuration {
@@ -24,10 +19,8 @@ func setDefaults() *Configuration {
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
 	viper.AddConfigPath(".")
-	viper.SetDefault("Port", "127.0.0.1:9001")
 	viper.SetDefault("Password", "")
-	viper.SetDefault("Ttl", time.Duration(0))
-	viper.SetDefault("HttpPort", "127.0.0.1:8080")
+	viper.SetDefault("Destination", "127.0.0.1:9001")
 	viper.Unmarshal(&configuration)
 	return &configuration
 }
@@ -50,16 +43,8 @@ func (c *Configuration) loadConfig() error {
 	}
 
 	log.Info("using")
-	log.Info("port: " + c.Port)
 	log.Info("password: " + c.Password)
-	log.Infof("ttl: %+v", c.Ttl)
-	log.Info("http port: " + c.HttpPort)
-
-	h := sha1.New()
-	if _, err := h.Write([]byte(c.Password)); err != nil {
-		log.Fatalf("failed to hash password from config.ini", err.Error())
-	}
-	c.Password = string(h.Sum(nil))
+	log.Info("destination: " + c.Destination)
 
 	return nil
 }

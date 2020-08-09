@@ -99,11 +99,12 @@ func (s *Server) cleanup() {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
+	//TODO: Strip ".." and other stuff from image path
 	filename := r.URL.Query().Get("v")
 	_, err := os.Stat("./received/" + filename)
 	if os.IsNotExist(err) {
 		filename = "../assets/404.png"
-		fmt.Fprintf(w, "<title>Pogogo | 404 </title>")
+		fmt.Fprintf(w, "<title>Pogogo | 404</title>")
 	} else {
 		fmt.Fprintf(w, "<title>Pogogo | %s</title>", filename)
 	}

@@ -14,11 +14,8 @@ import (
 
 func main() {
 	cleanup := flag.Bool("c", false, "runs cleanup at program start")
-
 	flag.Parse()
-
 	sigs := make(chan os.Signal, 1)
-
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 	ctx, cancel := context.WithCancel(context.Background())
 	s, done := server.New(ctx, *cleanup)

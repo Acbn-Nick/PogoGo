@@ -1,0 +1,6 @@
+#==========================================================#
+#Password that will be used to authenticate upload requests.
+Password="pogogo"
+#Where images are to be uploaded
+Destination="127.0.0.1:9001"
+#==========================================================#
