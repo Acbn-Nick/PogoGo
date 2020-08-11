@@ -19,11 +19,10 @@ func main() {
 
 	go c.Start()
 
-	<-sigs
+	//<-sigs
+	<-done
 	log.Info("killing client")
 	cancel()
-	<-done
-
 }
 
 /*var conn *grpc.ClientConn
