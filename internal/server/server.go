@@ -109,7 +109,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "<title>Pogogo | %s</title>", filename)
 	}
 	page := "<link rel='icon' type='image/ico' href='assets/favicon.ico'>" +
-		"<br><img src='images/%s' style='display:block;margin-left:auto;margin-right:auto;max-width:50%%;'>" +
+		"<br><img src='images/%s' style='display:block;margin-left:auto;margin-right:auto;max-width:80%%;'>" +
 		"<center><br><br>" +
 		"<a href='https://github.com/Acbn-Nick/pogogo' style='text-decoration:none;color:#3e598c;'>Sharing made easy with Pogogo</a>" +
 		"</center>"
