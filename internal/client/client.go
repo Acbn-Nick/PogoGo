@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/Acbn-Nick/pogogo/api"
@@ -37,17 +39,16 @@ func (c *Client) Start() {
 	<-c.done
 }
 
-func (c *Client) takeScreenshot() {
-
-	bounds := screenshot.GetDisplayBounds(0)
-
+func (c *Client) takeScreenshot(n int) {
+	time.Sleep(500 * time.Millisecond) //Sleep to wait for clicked menu option to fade away
+	bounds := screenshot.GetDisplayBounds(n)
 	img, err := screenshot.CaptureRect(bounds)
 	if err != nil {
 		log.Info("failed to capture screen ", err.Error())
 		return
 	}
 	t := time.Now()
-	fname := t.Format("2006-01-02-15,04,05") + ".png"
+	fname := t.Format("2006-01-02-15_04_05") + ".png"
 	file, _ := os.Create(fname)
 	defer file.Close()
 	if err != nil {
@@ -62,12 +63,10 @@ func (c *Client) takeScreenshot() {
 		log.Info("failed to sync with filesystem ", err.Error())
 		return
 	}
-
 	if err := c.upload(fname); err != nil {
 		log.Info("problem uploading file ", err.Error())
 		return
 	}
-
 }
 
 func (c *Client) upload(fname string) error {
@@ -102,22 +101,38 @@ func (c *Client) onReady() {
 	if err != nil {
 		log.Fatal("error loading systray icon ", err.Error())
 	}
+	time.Sleep(500 * time.Millisecond) // Add 500ms delay to fix issue with systray.AddMenuItem() in go routines.
 	systray.SetIcon(ico)
 	systray.SetTitle("Pogogo")
 	systray.SetTooltip("Pogogo Screen Capture")
-	snip := systray.AddMenuItem("Take screenshot", "Take screenshot")
+
+	var chans []chan struct{}
+	for i := 0; i < screenshot.NumActiveDisplays(); i++ {
+		mi := systray.AddMenuItem("Capture monitor "+strconv.Itoa(i+1), "Capture monitor "+strconv.Itoa(i+1))
+		chans = append(chans, mi.ClickedCh)
+	}
+
+	cases := make([]reflect.SelectCase, len(chans)+2)
+	numAdded := 0
+	for i, ch := range chans {
+		cases[i] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
+		numAdded = i
+	}
+	systray.AddSeparator()
 	reload := systray.AddMenuItem("Reload config", "Reload config")
+	cases[numAdded+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(reload.ClickedCh)}
 	quit := systray.AddMenuItem("Quit", "Quit")
+	cases[numAdded+2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quit.ClickedCh)}
 	go func() {
 		for {
-			select {
-			case <-snip.ClickedCh:
-				c.takeScreenshot()
-			case <-reload.ClickedCh:
+			chosen, _, _ := reflect.Select(cases)
+			if chosen == len(cases)-2 {
 				c.config.loadConfig()
-			case <-quit.ClickedCh:
+			} else if chosen == len(cases)-1 {
 				systray.Quit()
 				return
+			} else {
+				c.takeScreenshot(chosen)
 			}
 		}
 	}()
