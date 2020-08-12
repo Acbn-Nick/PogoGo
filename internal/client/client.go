@@ -92,7 +92,12 @@ func (c *Client) upload(fname string) error {
 		return err
 	}
 	log.Info("client got response: ", response.Msg)
-	exec.Command("rundll32", "url.dll,FileProtocolHandler", "http://"+response.Msg).Start()
+	if c.config.OpenInBrowser == 1 {
+		exec.Command("rundll32", "url.dll,FileProtocolHandler", "http://"+response.Msg).Start()
+	}
+	if c.config.CopyToClipboard == 1 {
+		//Unimplemented
+	}
 	return nil
 }
 
@@ -112,23 +117,66 @@ func (c *Client) onReady() {
 		chans = append(chans, mi.ClickedCh)
 	}
 
-	cases := make([]reflect.SelectCase, len(chans)+2)
+	cases := make([]reflect.SelectCase, len(chans)+4)
 	numAdded := 0
 	for i, ch := range chans {
 		cases[i] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
 		numAdded = i
 	}
 	systray.AddSeparator()
+	browser := systray.AddMenuItem("Open in browser", "Open in browser")
+	if c.config.OpenInBrowser == 1 {
+		browser.Check()
+	}
+	cases[numAdded+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(browser.ClickedCh)}
+	copy := systray.AddMenuItem("Copy to clipboard", "Copy to clipboard")
+	if c.config.CopyToClipboard == 1 {
+		copy.Check()
+	}
+	cases[numAdded+2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(copy.ClickedCh)}
+	systray.AddSeparator()
 	reload := systray.AddMenuItem("Reload config", "Reload config")
-	cases[numAdded+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(reload.ClickedCh)}
+	cases[numAdded+3] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(reload.ClickedCh)}
 	quit := systray.AddMenuItem("Quit", "Quit")
-	cases[numAdded+2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quit.ClickedCh)}
+	cases[numAdded+4] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quit.ClickedCh)}
+	var (
+		openInBrowser   = len(cases) - 4
+		copyToClipboard = len(cases) - 3
+		loadConfig      = len(cases) - 2
+		quitSys         = len(cases) - 1
+	)
 	go func() {
 		for {
 			chosen, _, _ := reflect.Select(cases)
-			if chosen == len(cases)-2 {
+			if chosen == openInBrowser {
+				if browser.Checked() {
+					browser.Uncheck()
+					c.config.OpenInBrowser = 0
+				} else {
+					browser.Check()
+					c.config.OpenInBrowser = 1
+				}
+			} else if chosen == copyToClipboard {
+				if copy.Checked() {
+					copy.Uncheck()
+					c.config.CopyToClipboard = 0
+				} else {
+					copy.Check()
+					c.config.CopyToClipboard = 1
+				}
+			} else if chosen == loadConfig {
 				c.config.loadConfig()
-			} else if chosen == len(cases)-1 {
+				if c.config.OpenInBrowser == 1 {
+					browser.Check()
+				} else {
+					browser.Uncheck()
+				}
+				if c.config.CopyToClipboard == 1 {
+					copy.Check()
+				} else {
+					copy.Uncheck()
+				}
+			} else if chosen == quitSys {
 				systray.Quit()
 				return
 			} else {

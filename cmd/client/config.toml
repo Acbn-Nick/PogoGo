@@ -3,4 +3,8 @@
 Password="pogogo"
 #Where images are to be uploaded
 Destination="127.0.0.1:9001"
+#Whether uploads are opened in a new tab
+OpenInBrowser=1
+#Whether upload URL is copied to clipboard
+CopyToClipboard=1
 #==========================================================#

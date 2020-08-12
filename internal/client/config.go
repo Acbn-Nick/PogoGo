@@ -6,8 +6,10 @@ import (
 )
 
 type Configuration struct {
-	Password    string `mapstructure:"Password"`
-	Destination string `mapstructure:"Destination"`
+	Password        string `mapstructure:"Password"`
+	Destination     string `mapstructure:"Destination"`
+	OpenInBrowser   int    `mapstructure:"OpenInBrowser"`
+	CopyToClipboard int    `mapstructure:"CopyToClipboard"`
 }
 
 func NewConfiguration() *Configuration {
@@ -21,6 +23,8 @@ func setDefaults() *Configuration {
 	viper.AddConfigPath(".")
 	viper.SetDefault("Password", "")
 	viper.SetDefault("Destination", "127.0.0.1:9001")
+	viper.SetDefault("OpenInBrowser", 1)
+	viper.SetDefault("CopyToClipboard", 1)
 	viper.Unmarshal(&configuration)
 	return &configuration
 }
@@ -45,6 +49,8 @@ func (c *Configuration) loadConfig() error {
 	log.Info("using")
 	log.Info("password: " + c.Password)
 	log.Info("destination: " + c.Destination)
+	log.Infof("open: %d", c.OpenInBrowser)
+	log.Infof("copy: %d", c.CopyToClipboard)
 
 	return nil
 }
