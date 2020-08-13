@@ -106,11 +106,67 @@ func (c *Client) onReady() {
 	if err != nil {
 		log.Fatal("error loading systray icon ", err.Error())
 	}
-	time.Sleep(500 * time.Millisecond) // Add 500ms delay to fix issue with systray.AddMenuItem() in go routines.
+	time.Sleep(500 * time.Millisecond) // Add 500ms delay to fix issue with systray.AddMenuItem() in goroutines.
 	systray.SetIcon(ico)
 	systray.SetTitle("Pogogo")
 	systray.SetTooltip("Pogogo Screen Capture")
+	cases, numAdded := c.createScreenChans()
+	systray.AddSeparator()
+	browser := systray.AddMenuItem("Open in browser", "Open in browser")
+	copy := systray.AddMenuItem("Copy to clipboard", "Copy to clipboard")
+	systray.AddSeparator()
+	reload := systray.AddMenuItem("Reload config", "Reload config")
+	quit := systray.AddMenuItem("Quit", "Quit")
+	c.setCheck(browser, c.config.OpenInBrowser, 0)
+	c.setCheck(copy, c.config.CopyToClipboard, 1)
 
+	cases[numAdded+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(browser.ClickedCh)}
+	cases[numAdded+2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(copy.ClickedCh)}
+	cases[numAdded+3] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(reload.ClickedCh)}
+	cases[numAdded+4] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quit.ClickedCh)}
+
+	var (
+		openInBrowser   = len(cases) - 4
+		copyToClipboard = len(cases) - 3
+		loadConfig      = len(cases) - 2
+		quitSys         = len(cases) - 1
+	)
+
+	go func() {
+		for {
+			chosen, _, _ := reflect.Select(cases)
+			if chosen == openInBrowser {
+				c.setCheck(browser, 1-c.config.OpenInBrowser, 0)
+			} else if chosen == copyToClipboard {
+				c.setCheck(copy, 1-c.config.CopyToClipboard, 1)
+			} else if chosen == loadConfig {
+				c.config.loadConfig()
+				c.setCheck(browser, c.config.OpenInBrowser, 0)
+				c.setCheck(copy, c.config.CopyToClipboard, 1)
+			} else if chosen == quitSys {
+				systray.Quit()
+				return
+			} else {
+				c.takeScreenshot(chosen)
+			}
+		}
+	}()
+}
+
+func (c *Client) setCheck(m *systray.MenuItem, v int, i int) {
+	if v == 0 {
+		m.Uncheck()
+	} else if v == 1 {
+		m.Check()
+	}
+	if i == 0 {
+		c.config.OpenInBrowser = v
+	} else if i == 1 {
+		c.config.CopyToClipboard = v
+	}
+}
+
+func (c *Client) createScreenChans() ([]reflect.SelectCase, int) {
 	var chans []chan struct{}
 	for i := 0; i < screenshot.NumActiveDisplays(); i++ {
 		mi := systray.AddMenuItem("Capture monitor "+strconv.Itoa(i+1), "Capture monitor "+strconv.Itoa(i+1))
@@ -123,67 +179,7 @@ func (c *Client) onReady() {
 		cases[i] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
 		numAdded = i
 	}
-	systray.AddSeparator()
-	browser := systray.AddMenuItem("Open in browser", "Open in browser")
-	if c.config.OpenInBrowser == 1 {
-		browser.Check()
-	}
-	cases[numAdded+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(browser.ClickedCh)}
-	copy := systray.AddMenuItem("Copy to clipboard", "Copy to clipboard")
-	if c.config.CopyToClipboard == 1 {
-		copy.Check()
-	}
-	cases[numAdded+2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(copy.ClickedCh)}
-	systray.AddSeparator()
-	reload := systray.AddMenuItem("Reload config", "Reload config")
-	cases[numAdded+3] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(reload.ClickedCh)}
-	quit := systray.AddMenuItem("Quit", "Quit")
-	cases[numAdded+4] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quit.ClickedCh)}
-	var (
-		openInBrowser   = len(cases) - 4
-		copyToClipboard = len(cases) - 3
-		loadConfig      = len(cases) - 2
-		quitSys         = len(cases) - 1
-	)
-	go func() {
-		for {
-			chosen, _, _ := reflect.Select(cases)
-			if chosen == openInBrowser {
-				if browser.Checked() {
-					browser.Uncheck()
-					c.config.OpenInBrowser = 0
-				} else {
-					browser.Check()
-					c.config.OpenInBrowser = 1
-				}
-			} else if chosen == copyToClipboard {
-				if copy.Checked() {
-					copy.Uncheck()
-					c.config.CopyToClipboard = 0
-				} else {
-					copy.Check()
-					c.config.CopyToClipboard = 1
-				}
-			} else if chosen == loadConfig {
-				c.config.loadConfig()
-				if c.config.OpenInBrowser == 1 {
-					browser.Check()
-				} else {
-					browser.Uncheck()
-				}
-				if c.config.CopyToClipboard == 1 {
-					copy.Check()
-				} else {
-					copy.Uncheck()
-				}
-			} else if chosen == quitSys {
-				systray.Quit()
-				return
-			} else {
-				c.takeScreenshot(chosen)
-			}
-		}
-	}()
+	return cases, numAdded
 }
 
 func (c *Client) onExit() {
