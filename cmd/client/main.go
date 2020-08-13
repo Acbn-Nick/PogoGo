@@ -9,14 +9,11 @@ import (
 )
 
 func main() {
-	//sigs := make(chan os.Signal, 1)
-	//signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 	ctx, cancel := context.WithCancel(context.Background())
 	c, done := server.New(ctx)
 
 	go c.Start()
 
-	//<-sigs
 	<-done
 	log.Info("killing client")
 	cancel()

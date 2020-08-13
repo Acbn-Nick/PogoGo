@@ -2,15 +2,17 @@ package client
 
 import (
 	"context"
+	"image"
 	"image/png"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"reflect"
+	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/Acbn-Nick/pogogo/api"
+	"github.com/atotto/clipboard"
 	"github.com/getlantern/systray"
 	"github.com/kbinani/screenshot"
 
@@ -22,11 +24,25 @@ type Client struct {
 	config *Configuration
 	ctx    context.Context
 	done   chan interface{}
+	osh    OsHandler
+}
+
+type OsHandler interface {
+	KeyListen()
+	OpenInBrowser(string)
 }
 
 func New(ctx context.Context) (*Client, chan interface{}) {
 	c := &Client{done: make(chan interface{})}
 	c.config = NewConfiguration()
+	o := runtime.GOOS
+	if o == "windows" {
+		c.osh = CreateWinHandler(c)
+	} else if o == "darwin" {
+		//create macos osHandler
+	} else {
+		//create linux osHandler
+	}
 	return c, c.done
 }
 
@@ -36,12 +52,17 @@ func (c *Client) Start() {
 	if err := c.config.loadConfig(); err != nil {
 		log.Fatal("error loading config ", err.Error())
 	}
+	go c.osh.KeyListen()
 	<-c.done
 }
 
-func (c *Client) takeScreenshot(n int) {
+func (c *Client) captureDisplay(n int) {
 	time.Sleep(500 * time.Millisecond) //Sleep to wait for clicked menu option to fade away
 	bounds := screenshot.GetDisplayBounds(n)
+	c.takeScreenshot(bounds)
+}
+
+func (c *Client) takeScreenshot(bounds image.Rectangle) {
 	img, err := screenshot.CaptureRect(bounds)
 	if err != nil {
 		log.Info("failed to capture screen ", err.Error())
@@ -69,6 +90,15 @@ func (c *Client) takeScreenshot(n int) {
 	}
 }
 
+func (c *Client) captureArea() {
+	//take screenshots of all monitors
+	//display fullscreen images of each monitor on correct monitor
+	//draw rectangle over where user's mouse is
+	//capture area or just trim image from screenshots earlier
+	//save and upload
+	return
+}
+
 func (c *Client) upload(fname string) error {
 	var conn *grpc.ClientConn
 	conn, err := grpc.Dial(c.config.Destination, grpc.WithInsecure())
@@ -93,10 +123,10 @@ func (c *Client) upload(fname string) error {
 	}
 	log.Info("client got response: ", response.Msg)
 	if c.config.OpenInBrowser == 1 {
-		exec.Command("rundll32", "url.dll,FileProtocolHandler", "http://"+response.Msg).Start()
+		c.osh.OpenInBrowser("http://" + response.Msg)
 	}
 	if c.config.CopyToClipboard == 1 {
-		//Unimplemented
+		clipboard.WriteAll("http://" + response.Msg)
 	}
 	return nil
 }
@@ -112,6 +142,8 @@ func (c *Client) onReady() {
 	systray.SetTooltip("Pogogo Screen Capture")
 	cases, numAdded := c.createScreenChans()
 	systray.AddSeparator()
+	area := systray.AddMenuItem("Snip area", "Snip area")
+	systray.AddSeparator()
 	browser := systray.AddMenuItem("Open in browser", "Open in browser")
 	copy := systray.AddMenuItem("Copy to clipboard", "Copy to clipboard")
 	systray.AddSeparator()
@@ -120,12 +152,14 @@ func (c *Client) onReady() {
 	c.setCheck(browser, c.config.OpenInBrowser, 0)
 	c.setCheck(copy, c.config.CopyToClipboard, 1)
 
-	cases[numAdded+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(browser.ClickedCh)}
-	cases[numAdded+2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(copy.ClickedCh)}
-	cases[numAdded+3] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(reload.ClickedCh)}
-	cases[numAdded+4] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quit.ClickedCh)}
+	cases[numAdded+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(area.ClickedCh)}
+	cases[numAdded+2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(browser.ClickedCh)}
+	cases[numAdded+3] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(copy.ClickedCh)}
+	cases[numAdded+4] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(reload.ClickedCh)}
+	cases[numAdded+5] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quit.ClickedCh)}
 
 	var (
+		areaSnip        = len(cases) - 5
 		openInBrowser   = len(cases) - 4
 		copyToClipboard = len(cases) - 3
 		loadConfig      = len(cases) - 2
@@ -135,7 +169,9 @@ func (c *Client) onReady() {
 	go func() {
 		for {
 			chosen, _, _ := reflect.Select(cases)
-			if chosen == openInBrowser {
+			if chosen == areaSnip {
+				c.captureArea()
+			} else if chosen == openInBrowser {
 				c.setCheck(browser, 1-c.config.OpenInBrowser, 0)
 			} else if chosen == copyToClipboard {
 				c.setCheck(copy, 1-c.config.CopyToClipboard, 1)
@@ -147,7 +183,7 @@ func (c *Client) onReady() {
 				systray.Quit()
 				return
 			} else {
-				c.takeScreenshot(chosen)
+				c.captureDisplay(chosen)
 			}
 		}
 	}()
@@ -173,7 +209,7 @@ func (c *Client) createScreenChans() ([]reflect.SelectCase, int) {
 		chans = append(chans, mi.ClickedCh)
 	}
 
-	cases := make([]reflect.SelectCase, len(chans)+4)
+	cases := make([]reflect.SelectCase, len(chans)+5)
 	numAdded := 0
 	for i, ch := range chans {
 		cases[i] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
