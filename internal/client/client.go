@@ -24,16 +24,18 @@ type Client struct {
 	config *Configuration
 	ctx    context.Context
 	done   chan interface{}
+	reload chan interface{}
 	osh    OsHandler
 }
 
 type OsHandler interface {
-	KeyListen()
+	KeyListen(chan interface{})
 	OpenInBrowser(string)
+	CaptureArea()
 }
 
 func New(ctx context.Context) (*Client, chan interface{}) {
-	c := &Client{done: make(chan interface{})}
+	c := &Client{done: make(chan interface{}), reload: make(chan interface{})}
 	c.config = NewConfiguration()
 	o := runtime.GOOS
 	if o == "windows" {
@@ -48,11 +50,12 @@ func New(ctx context.Context) (*Client, chan interface{}) {
 
 func (c *Client) Start() {
 	log.Info("starting client")
+	initKeymap()
 	go systray.Run(c.onReady, c.onExit)
 	if err := c.config.loadConfig(); err != nil {
 		log.Fatal("error loading config ", err.Error())
 	}
-	go c.osh.KeyListen()
+	go c.osh.KeyListen(c.reload)
 	<-c.done
 }
 
@@ -90,14 +93,14 @@ func (c *Client) takeScreenshot(bounds image.Rectangle) {
 	}
 }
 
-func (c *Client) captureArea() {
+/*func (c *Client) captureArea() {
 	//take screenshots of all monitors
 	//display fullscreen images of each monitor on correct monitor
 	//draw rectangle over where user's mouse is
 	//capture area or just trim image from screenshots earlier
 	//save and upload
 	return
-}
+}*/
 
 func (c *Client) upload(fname string) error {
 	var conn *grpc.ClientConn
@@ -170,7 +173,7 @@ func (c *Client) onReady() {
 		for {
 			chosen, _, _ := reflect.Select(cases)
 			if chosen == areaSnip {
-				c.captureArea()
+				c.osh.CaptureArea()
 			} else if chosen == openInBrowser {
 				c.setCheck(browser, 1-c.config.OpenInBrowser, 0)
 			} else if chosen == copyToClipboard {
@@ -179,6 +182,8 @@ func (c *Client) onReady() {
 				c.config.loadConfig()
 				c.setCheck(browser, c.config.OpenInBrowser, 0)
 				c.setCheck(copy, c.config.CopyToClipboard, 1)
+				c.reload <- nil
+				c.osh.KeyListen(c.reload)
 			} else if chosen == quitSys {
 				systray.Quit()
 				return

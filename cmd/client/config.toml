@@ -7,4 +7,8 @@ Destination="127.0.0.1:9001"
 OpenInBrowser=1
 #Whether upload URL is copied to clipboard
 CopyToClipboard=1
+#Shortcut for capturing active window
+CaptureActive="ctrl+shift+1"
+#Shortcut for entering snip mode
+CaptureSnip="ctrl+shift+q"
 #==========================================================#

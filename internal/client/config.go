@@ -10,6 +10,8 @@ type Configuration struct {
 	Destination     string `mapstructure:"Destination"`
 	OpenInBrowser   int    `mapstructure:"OpenInBrowser"`
 	CopyToClipboard int    `mapstructure:"CopyToClipboard"`
+	CaptureActive   string `mapstructure:"CaptureActive"`
+	CaptureSnip     string `mapstructure:"CaptureSnip"`
 }
 
 func NewConfiguration() *Configuration {
@@ -25,6 +27,8 @@ func setDefaults() *Configuration {
 	viper.SetDefault("Destination", "127.0.0.1:9001")
 	viper.SetDefault("OpenInBrowser", 1)
 	viper.SetDefault("CopyToClipboard", 1)
+	viper.SetDefault("CaptureActive", "ctrl+shift+1")
+	viper.SetDefault("CaptureSnip", "ctrl+shift+q")
 	viper.Unmarshal(&configuration)
 	return &configuration
 }
@@ -51,6 +55,8 @@ func (c *Configuration) loadConfig() error {
 	log.Info("destination: " + c.Destination)
 	log.Infof("open: %d", c.OpenInBrowser)
 	log.Infof("copy: %d", c.CopyToClipboard)
+	log.Infof("cap active: %s", c.CaptureActive)
+	log.Infof("cap snip: %s", c.CaptureSnip)
 
 	return nil
 }
