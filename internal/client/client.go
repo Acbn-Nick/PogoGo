@@ -50,7 +50,6 @@ func New(ctx context.Context) (*Client, chan interface{}) {
 
 func (c *Client) Start() {
 	log.Info("starting client")
-	initKeymap()
 	go systray.Run(c.onReady, c.onExit)
 	if err := c.config.loadConfig(); err != nil {
 		log.Fatal("error loading config ", err.Error())
@@ -139,7 +138,7 @@ func (c *Client) onReady() {
 	if err != nil {
 		log.Fatal("error loading systray icon ", err.Error())
 	}
-	time.Sleep(500 * time.Millisecond) // Add 500ms delay to fix issue with systray.AddMenuItem() in goroutines.
+	time.Sleep(500 * time.Millisecond) // Add 500ms delay to fix issue with systray.AddMenuItem() in goroutines on Windows.
 	systray.SetIcon(ico)
 	systray.SetTitle("Pogogo")
 	systray.SetTooltip("Pogogo Screen Capture")
@@ -183,7 +182,8 @@ func (c *Client) onReady() {
 				c.setCheck(browser, c.config.OpenInBrowser, 0)
 				c.setCheck(copy, c.config.CopyToClipboard, 1)
 				c.reload <- nil
-				c.osh.KeyListen(c.reload)
+				time.Sleep(1 * time.Second)
+				go c.osh.KeyListen(c.reload)
 			} else if chosen == quitSys {
 				systray.Quit()
 				return

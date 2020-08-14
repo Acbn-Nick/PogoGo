@@ -3,11 +3,12 @@ package client
 import (
 	"image"
 	"os/exec"
-	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 
+	"github.com/Acbn-Nick/pogogo/internal/client/keycode"
+	hook "github.com/robotn/gohook"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,45 +38,36 @@ func CreateWinHandler(c *Client) OsHandler {
 	return &OsWin{c: c}
 }
 
+func (o *OsWin) startHooks(capActive []string, capSnip []string, dd chan interface{}) {
+	log.Info("starting hooks")
+	hook.Register(hook.KeyDown, capActive, func(e hook.Event) {
+		o.captureActiveWindow()
+	})
+	hook.Register(hook.KeyDown, capSnip, func(e hook.Event) {
+		o.CaptureArea()
+	})
+	s := hook.Start()
+	<-hook.Process(s)
+}
+
 func (o *OsWin) KeyListen(done chan interface{}) {
-	capActive, err := parseShortcut(o.c.config.CaptureActive)
+	capActive, err := keycode.ParseShortcut(o.c.config.CaptureActive)
 	if err != nil {
 		log.Infof("failed to parse capture active shortcut ", err.Error())
 		return
 	}
-	capSnip, err := parseShortcut(o.c.config.CaptureSnip)
+	capSnip, err := keycode.ParseShortcut(o.c.config.CaptureSnip)
 	if err != nil {
 		log.Infof("failed to parse capture snip shortcut ", err.Error())
 		return
 	}
-	for {
-		select {
-		case <-done:
-			return
-		default:
-			activePressed := true
-			for _, v := range capActive {
-				async, _, _ := procGetAsyncKeyState.Call(uintptr(uintptr(v)))
-				activePressed = activePressed && (async != 0)
-			}
+	dd := make(chan interface{})
+	go o.startHooks(capActive, capSnip, dd)
 
-			capPressed := true
-			for _, v := range capSnip {
-				async, _, _ := procGetAsyncKeyState.Call(uintptr(uintptr(v)))
-				capPressed = capPressed && (async != 0)
-			}
-
-			if activePressed {
-				o.captureActiveWindow()
-				time.Sleep(1 * time.Second)
-			} else if capPressed {
-				o.CaptureArea()
-				time.Sleep(1 * time.Second)
-			}
-
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
+	<-done
+	log.Info("killing hooks")
+	hook.End()
+	return
 }
 
 func (o *OsWin) OpenInBrowser(s string) {
