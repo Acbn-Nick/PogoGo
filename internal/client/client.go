@@ -66,6 +66,7 @@ func (c *Client) captureDisplay(n int) {
 
 func (c *Client) takeScreenshot(bounds image.Rectangle) {
 	img, err := screenshot.CaptureRect(bounds)
+	log.Info("Capturing: ", bounds.Min.X, bounds.Min.Y, bounds.Max.X, bounds.Max.Y)
 	if err != nil {
 		log.Info("failed to capture screen ", err.Error())
 		return
@@ -91,15 +92,6 @@ func (c *Client) takeScreenshot(bounds image.Rectangle) {
 		return
 	}
 }
-
-/*func (c *Client) captureArea() {
-	//take screenshots of all monitors
-	//display fullscreen images of each monitor on correct monitor
-	//draw rectangle over where user's mouse is
-	//capture area or just trim image from screenshots earlier
-	//save and upload
-	return
-}*/
 
 func (c *Client) upload(fname string) error {
 	var conn *grpc.ClientConn

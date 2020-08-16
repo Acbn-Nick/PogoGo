@@ -3,6 +3,7 @@ package client
 import (
 	"image"
 	"os/exec"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -17,10 +18,8 @@ var (
 	procGetAsyncKeyState    = user32.NewProc("GetAsyncKeyState")
 	procGetForegroundWindow = user32.NewProc("GetForegroundWindow")
 	procGetWindowRect       = user32.NewProc("GetWindowRect")
-	VK_LCONTROL             = 0xA2
-	VK_LSHIFT               = 0xA0
-	VK_1                    = 0x31
-	VK_Q                    = 0x51
+	procGetCursorPos        = user32.NewProc("GetCursorPos")
+	VK_LBUTTON              = 0x01
 )
 
 type Rect struct {
@@ -28,6 +27,11 @@ type Rect struct {
 	top    int32
 	right  int32
 	bottom int32
+}
+
+type Point struct {
+	x int32
+	y int32
 }
 
 type OsWin struct {
@@ -75,7 +79,31 @@ func (o *OsWin) OpenInBrowser(s string) {
 }
 
 func (o *OsWin) CaptureArea() {
-
+	var (
+		lpPointTL = &Point{}
+		lpPointBR = &Point{}
+	)
+	procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
+	time.Sleep(100 * time.Millisecond)
+	click, _, _ := procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
+	click &= 0x100
+	for {
+		if click != 0 {
+			procGetCursorPos.Call(uintptr(unsafe.Pointer(lpPointTL)))
+			break
+		}
+		click, _, _ = procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
+	}
+	held, _, _ := procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
+	for {
+		if held == 0 {
+			procGetCursorPos.Call(uintptr(unsafe.Pointer(lpPointBR)))
+			break
+		}
+		held, _, _ = procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
+	}
+	bounds := image.Rect(int(lpPointTL.x), int(lpPointTL.y), int(lpPointBR.x), int(lpPointBR.y))
+	o.c.takeScreenshot(bounds)
 }
 
 func (o *OsWin) captureActiveWindow() {
