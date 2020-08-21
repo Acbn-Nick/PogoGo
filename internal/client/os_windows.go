@@ -13,6 +13,7 @@ import (
 
 	"github.com/Acbn-Nick/pogogo/internal/client/keycode"
 	"github.com/kbinani/screenshot"
+	"github.com/lxn/win"
 	hook "github.com/robotn/gohook"
 	log "github.com/sirupsen/logrus"
 	"github.com/veandco/go-sdl2/img"
@@ -20,18 +21,15 @@ import (
 )
 
 var (
-	user32                         = windows.NewLazyDLL("user32.dll")
-	dwmapi                         = windows.NewLazyDLL("dwmapi.dll")
-	procGetAsyncKeyState           = user32.NewProc("GetAsyncKeyState")
-	procGetForegroundWindow        = user32.NewProc("GetForegroundWindow")
-	procGetWindowRect              = user32.NewProc("GetWindowRect")
-	procGetCursorPos               = user32.NewProc("GetCursorPos")
-	procGetDesktopWindow           = user32.NewProc("GetDesktopWindow")
-	procSetWindowLong              = user32.NewProc("SetWindowLongA")
-	procGetWindowLong              = user32.NewProc("GetWindowLongA")
-	procSetLayeredWindowAttributes = user32.NewProc("SetLayeredWindowAttributes")
-	procDwmEnableBlurBehindWindow  = dwmapi.NewProc("DwmEnableBlurBehindWindow")
-	VK_LBUTTON                     = 0x01
+	user32                  = windows.NewLazyDLL("user32.dll")
+	procGetAsyncKeyState    = user32.NewProc("GetAsyncKeyState")
+	procGetForegroundWindow = user32.NewProc("GetForegroundWindow")
+	procGetWindowRect       = user32.NewProc("GetWindowRect")
+	procGetCursorPos        = user32.NewProc("GetCursorPos")
+	procGetSystemMetrics    = user32.NewProc("GetSystemMetrics")
+	procBringWindowToTop    = user32.NewProc("BringWindowToTop")
+	procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
+	VK_LBUTTON              = 0x01
 )
 
 type Rect struct {
@@ -102,47 +100,34 @@ func (o *OsWin) CaptureArea() {
 		lpPointTL = &Point{}
 		lpPointBR = &Point{}
 	)
-	window, renderer, err := o.createSdlWindow()
+	window, renderer, tex, err := o.createSdlWindow()
 
-	var r = sdl.Rect{X: 300, Y: 300, W: 75, H: 75}
-	/*renderer.SetDrawColor(255, 255, 00, 255)
-	renderer.DrawRect(&r)*/
-	renderer.SetDrawColor(40, 128, 40, 255)
-	renderer.FillRect(&r)
-
-	/*hwin := win.GetActiveWindow()
-
-	wl := win.GetWindowLong(hwin, win.GWL_EXSTYLE)
-	wl = wl | win.WS_EX_LAYERED
-	log.Info("window handle: ", hwin)
-	if x := win.SetWindowLong(hwin, win.GWL_EXSTYLE, wl); x == 0 {
-		log.Info("failed to set window long")
+	wmi, err := window.GetWMInfo()
+	if err != nil {
+		log.Info("failed to get window manager info for window ", err.Error())
 	}
+	hwnd := wmi.GetWindowsInfo().Window
+	procBringWindowToTop.Call(uintptr(hwnd))
+	procSetForegroundWindow.Call(uintptr(hwnd))
 
-	procSetLayeredWindowAttributes.Call(uintptr(hwin), 0x00ffff00, 10, 0x00000001)
-
-	bb := DWM_BLURBEHIND{DwFlags: 0x00000005, fEnable: 1, hRgnBlur: 0, fTransitionOnMaximized: 1}
-
-	procDwmEnableBlurBehindWindow.Call(uintptr(hwin), uintptr(unsafe.Pointer(&bb)))
-	win.UpdateWindow(hwin)
-
-	win.SetWindowPos(hwin, hwin, 0, 0, 1, 1, win.SWP_NOMOVE|win.SWP_NOSIZE|win.SWP_NOZORDER|win.SWP_FRAMECHANGED)
-	window.SetWindowOpacity(0.1)
-	window.UpdateSurface()
-	renderer.Present()*/
+	var r = sdl.Rect{X: 0, Y: 0, W: 0, H: 0}
+	renderer.SetDrawColor(240, 240, 240, 255)
 
 	cursor := sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_CROSSHAIR)
 	defer sdl.FreeCursor(cursor)
 	sdl.SetCursor(cursor)
 	procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
-	time.Sleep(100 * time.Millisecond)
+
 	click, _, _ := procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
 	click &= 0x100
 	for {
 		if click != 0 {
 			procGetCursorPos.Call(uintptr(unsafe.Pointer(lpPointTL)))
+			r.X = lpPointTL.x
+			r.Y = lpPointTL.y
 			break
 		}
+		time.Sleep(15 * time.Millisecond)
 		click, _, _ = procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
 	}
 
@@ -151,17 +136,27 @@ func (o *OsWin) CaptureArea() {
 	}
 	held, _, _ := procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
 	for {
+		renderer.Clear()
 		if held == 0 {
 			procGetCursorPos.Call(uintptr(unsafe.Pointer(lpPointBR)))
+			renderer.Clear()
+			renderer.Copy(tex, nil, nil)
+			renderer.Present()
 			break
 		}
+		procGetCursorPos.Call(uintptr(unsafe.Pointer(lpPointBR)))
+		r.W = lpPointBR.x - lpPointTL.x
+		r.H = lpPointBR.y - lpPointTL.y
+		renderer.Copy(tex, nil, nil)
+		renderer.DrawRect(&r)
+		renderer.Present()
+		time.Sleep(10 * time.Millisecond)
 		held, _, _ = procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
 	}
 	bounds := image.Rect(int(lpPointTL.x), int(lpPointTL.y), int(lpPointBR.x), int(lpPointBR.y))
+	o.c.takeScreenshot(bounds)
 	window.Destroy()
 	sdl.Quit()
-	time.Sleep(200 * time.Millisecond)
-	o.c.takeScreenshot(bounds)
 }
 
 func (o *OsWin) captureActiveWindow() {
@@ -172,20 +167,20 @@ func (o *OsWin) captureActiveWindow() {
 	o.c.takeScreenshot(bounds)
 }
 
-func (o *OsWin) createSdlWindow() (*sdl.Window, *sdl.Renderer, error) {
+func (o *OsWin) createSdlWindow() (*sdl.Window, *sdl.Renderer, *sdl.Texture, error) {
 	runtime.LockOSThread()
 	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
 		log.Info("failed to initialize sdl ", err.Error())
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	hwnd, _, _ := procGetDesktopWindow.Call()
-	var rect = &Rect{0, 0, 0, 0}
-	procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(rect)))
 
-	window, err := sdl.CreateWindow("PogogoWin", sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED, rect.right-rect.left, rect.bottom-rect.top, sdl.WINDOW_FULLSCREEN|sdl.WINDOW_MOUSE_CAPTURE|sdl.WINDOW_ALWAYS_ON_TOP)
+	cx := win.GetSystemMetrics(win.SM_CXVIRTUALSCREEN)
+	cy := win.GetSystemMetrics(win.SM_CYVIRTUALSCREEN)
+
+	window, err := sdl.CreateWindow("PogogoWin", 0, 0, cx, cy, sdl.WINDOW_BORDERLESS|sdl.WINDOW_MOUSE_CAPTURE|sdl.WINDOW_ALWAYS_ON_TOP)
 	if err != nil {
 		log.Info("failed to create sdl window ", err.Error())
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	renderer, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_SOFTWARE)
@@ -193,7 +188,7 @@ func (o *OsWin) createSdlWindow() (*sdl.Window, *sdl.Renderer, error) {
 		log.Info("failed to create renderer ", err.Error())
 	}
 
-	imga, err := screenshot.CaptureDisplay(0)
+	imga, err := screenshot.CaptureRect(image.Rect(0, 0, int(cx), int(cy)))
 	file, err := os.Create("t1.png")
 	if err != nil {
 		log.Info("error creating file ", err.Error())
@@ -207,7 +202,9 @@ func (o *OsWin) createSdlWindow() (*sdl.Window, *sdl.Renderer, error) {
 	if err := file.Sync(); err != nil {
 		log.Info("failed to sync with filesystem ", err.Error())
 	}
-	file.Close()
+	if err := file.Close(); err != nil {
+		log.Info("failed to close file handle ", err.Error())
+	}
 	sImg, err := img.Load("t1.png")
 
 	tex, err := renderer.CreateTextureFromSurface(sImg)
@@ -218,5 +215,5 @@ func (o *OsWin) createSdlWindow() (*sdl.Window, *sdl.Renderer, error) {
 	renderer.Copy(tex, nil, nil)
 	renderer.Present()
 	os.Remove("t1.png")
-	return window, renderer, err
+	return window, renderer, tex, err
 }
