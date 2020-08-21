@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"runtime/debug"
 
 	log "github.com/sirupsen/logrus"
 
@@ -9,6 +10,7 @@ import (
 )
 
 func main() {
+	debug.SetGCPercent(10)
 	ctx, cancel := context.WithCancel(context.Background())
 	c, done := server.New(ctx)
 

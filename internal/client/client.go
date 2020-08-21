@@ -91,6 +91,7 @@ func (c *Client) takeScreenshot(bounds image.Rectangle) {
 		log.Info("problem uploading file ", err.Error())
 		return
 	}
+	return
 }
 
 func (c *Client) upload(fname string) error {

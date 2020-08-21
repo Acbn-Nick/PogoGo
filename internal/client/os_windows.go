@@ -109,6 +109,8 @@ func (o *OsWin) CaptureArea() {
 	defer renderer.Destroy()
 	defer sdl.Quit()
 
+	renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
+
 	wmi, err := window.GetWMInfo()
 	if err != nil {
 		log.Info("failed to get window manager info for window ", err.Error())
@@ -117,7 +119,7 @@ func (o *OsWin) CaptureArea() {
 	procBringWindowToTop.Call(uintptr(hwnd))
 	procSetForegroundWindow.Call(uintptr(hwnd))
 
-	renderer.SetDrawColor(240, 240, 240, 255)
+	renderer.SetDrawColor(42, 82, 190, 255)
 
 	cursor := sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_CROSSHAIR)
 	defer sdl.FreeCursor(cursor)
@@ -160,7 +162,10 @@ func (o *OsWin) CaptureArea() {
 		r.W = lpPointBR.x - lpPointTL.x
 		r.H = lpPointBR.y - lpPointTL.y
 		renderer.Copy(tex, nil, nil)
+		renderer.SetDrawColor(42, 82, 190, 255)
 		renderer.DrawRect(&r)
+		renderer.SetDrawColor(42, 82, 190, 30)
+		renderer.FillRect(&r)
 		renderer.Present()
 		time.Sleep(10 * time.Millisecond)
 		held, _, _ = procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
