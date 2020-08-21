@@ -100,10 +100,13 @@ func (o *OsWin) CaptureArea() {
 	var (
 		lpPointTL = &Point{}
 		lpPointBR = &Point{}
+		r         = sdl.Rect{X: 0, Y: 0, W: 0, H: 0}
 	)
 	window, renderer, tex, err := o.createSdlWindow()
 
 	defer window.Destroy()
+	defer tex.Destroy()
+	defer renderer.Destroy()
 	defer sdl.Quit()
 
 	wmi, err := window.GetWMInfo()
@@ -114,7 +117,6 @@ func (o *OsWin) CaptureArea() {
 	procBringWindowToTop.Call(uintptr(hwnd))
 	procSetForegroundWindow.Call(uintptr(hwnd))
 
-	var r = sdl.Rect{X: 0, Y: 0, W: 0, H: 0}
 	renderer.SetDrawColor(240, 240, 240, 255)
 
 	cursor := sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_CROSSHAIR)
@@ -215,7 +217,7 @@ func (o *OsWin) createSdlWindow() (*sdl.Window, *sdl.Renderer, *sdl.Texture, err
 		log.Info("failed to close file handle ", err.Error())
 	}
 	sImg, err := img.Load("t1.png")
-
+	defer sImg.Free()
 	tex, err := renderer.CreateTextureFromSurface(sImg)
 	if err != nil {
 		log.Info("error in creating texture ", err.Error())
