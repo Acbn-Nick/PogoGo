@@ -30,6 +30,7 @@ var (
 	procBringWindowToTop    = user32.NewProc("BringWindowToTop")
 	procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
 	VK_LBUTTON              = 0x01
+	VK_ESCAPE               = 0x1B
 )
 
 type Rect struct {
@@ -102,6 +103,9 @@ func (o *OsWin) CaptureArea() {
 	)
 	window, renderer, tex, err := o.createSdlWindow()
 
+	defer window.Destroy()
+	defer sdl.Quit()
+
 	wmi, err := window.GetWMInfo()
 	if err != nil {
 		log.Info("failed to get window manager info for window ", err.Error())
@@ -121,6 +125,9 @@ func (o *OsWin) CaptureArea() {
 	click, _, _ := procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
 	click &= 0x100
 	for {
+		if esc, _, _ := procGetAsyncKeyState.Call(uintptr(VK_ESCAPE)); esc != 0 {
+			return
+		}
 		if click != 0 {
 			procGetCursorPos.Call(uintptr(unsafe.Pointer(lpPointTL)))
 			r.X = lpPointTL.x
@@ -137,6 +144,9 @@ func (o *OsWin) CaptureArea() {
 	held, _, _ := procGetAsyncKeyState.Call(uintptr(VK_LBUTTON))
 	for {
 		renderer.Clear()
+		if esc, _, _ := procGetAsyncKeyState.Call(uintptr(VK_ESCAPE)); esc != 0 {
+			return
+		}
 		if held == 0 {
 			procGetCursorPos.Call(uintptr(unsafe.Pointer(lpPointBR)))
 			renderer.Clear()
@@ -155,8 +165,7 @@ func (o *OsWin) CaptureArea() {
 	}
 	bounds := image.Rect(int(lpPointTL.x), int(lpPointTL.y), int(lpPointBR.x), int(lpPointBR.y))
 	o.c.takeScreenshot(bounds)
-	window.Destroy()
-	sdl.Quit()
+	return
 }
 
 func (o *OsWin) captureActiveWindow() {
