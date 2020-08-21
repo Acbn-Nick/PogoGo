@@ -194,8 +194,10 @@ func (o *OsWin) createSdlWindow() (*sdl.Window, *sdl.Renderer, error) {
 	}
 
 	imga, err := screenshot.CaptureDisplay(0)
-	file, _ := os.Create("t1.png")
-	defer file.Close()
+	file, err := os.Create("t1.png")
+	if err != nil {
+		log.Info("error creating file ", err.Error())
+	}
 	if err != nil {
 		log.Info("failed to save screenshot to file ", err.Error())
 	}
@@ -205,6 +207,7 @@ func (o *OsWin) createSdlWindow() (*sdl.Window, *sdl.Renderer, error) {
 	if err := file.Sync(); err != nil {
 		log.Info("failed to sync with filesystem ", err.Error())
 	}
+	file.Close()
 	sImg, err := img.Load("t1.png")
 
 	tex, err := renderer.CreateTextureFromSurface(sImg)
