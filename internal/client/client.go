@@ -66,7 +66,7 @@ func (c *Client) captureDisplay(n int) {
 
 func (c *Client) takeScreenshot(bounds image.Rectangle) {
 	img, err := screenshot.CaptureRect(bounds)
-	log.Info("Capturing: ", bounds.Min.X, bounds.Min.Y, bounds.Max.X, bounds.Max.Y)
+	log.Info("capturing: ", bounds.Min.X, bounds.Min.Y, bounds.Max.X, bounds.Max.Y)
 	if err != nil {
 		log.Info("failed to capture screen ", err.Error())
 		return
