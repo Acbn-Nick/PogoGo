@@ -1,0 +1,10 @@
+#==========================================================#
+#Port that the server will listen for uploads on.
+Port="127.0.0.1:9001"
+#Password that will be used to authenticate upload requests.
+Password="pogogo"
+#Time to live, how long uploads will live on the server
+Ttl="1h1m1s"
+#Port HTTP server will be served on
+HttpPort="127.0.0.1:8080"
+#==========================================================#

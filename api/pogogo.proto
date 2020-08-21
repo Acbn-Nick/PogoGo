@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package api;
+
+service Pogogo{
+    rpc Upload(UploadRequest) returns (UploadResponse) {}
+}
+
+message UploadRequest {
+    string Password = 1;
+    bytes  Image    = 2;
+}
+
+message UploadResponse {
+    string Msg = 1;
+}

@@ -1,0 +1,14 @@
+#==========================================================#
+#Password that will be used to authenticate upload requests.
+Password="pogogo"
+#Where images are to be uploaded
+Destination="127.0.0.1:9001"
+#Whether uploads are opened in a new tab
+OpenInBrowser=1
+#Whether upload URL is copied to clipboard
+CopyToClipboard=1
+#Shortcut for capturing active window
+CaptureActive="ctrl+shift+1"
+#Shortcut for entering snip mode
+CaptureSnip="ctrl+shift+q"
+#==========================================================#
